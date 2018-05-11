@@ -1,0 +1,11 @@
+{
+  "name": "elm-event-sourcing",
+  "version": "0.0.1",
+  "description": "",
+  "main": "main.js",
+  "author": "Andraz Bajt",
+  "license": "ISC",
+  "dependencies": {
+    "uuid": "^3.2.1"
+  }
+}

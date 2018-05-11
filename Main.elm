@@ -3,12 +3,29 @@ port module Main exposing (..)
 import Platform
 import Json.Decode
 
+-- LIBRARY part
 
-port toJs : String -> Cmd msg
+type alias Request =
+    { id : String
+    , method : String
+    , url : String
+    }
 
 
-port fromJs : (String -> msg) -> Sub msg
+type alias Response =
+    { id : String
+    , status : Int
+    , body : String
+    }
 
+
+port respond : Response -> Cmd msg
+
+
+port receiveRequest : (Request -> msg) -> Sub msg
+
+
+-- Application part
 
 main : Program Never Int Msg
 main =
@@ -20,7 +37,7 @@ main =
 
 
 type Msg
-    = Incoming String
+    = IncomingRequest Request
 
 
 init : ( Int, Cmd msg )
@@ -30,13 +47,13 @@ init =
 
 subscriptions : Int -> Sub Msg
 subscriptions _ =
-    fromJs Incoming
+    receiveRequest IncomingRequest
 
 
 update : Msg -> Int -> ( Int, Cmd msg )
-update (Incoming str) n =
+update (IncomingRequest req) n =
     let
         str_ =
-            "re: " ++ str
+            "re: " ++ req.id
     in
-        ( Debug.log str_ n, toJs str_ )
+        ( Debug.log str_ (n + 1), respond { id = req.id, status = 200, body = "hello " ++ toString n } )

@@ -3,7 +3,9 @@ port module Main exposing (..)
 import Platform
 import Json.Decode
 
+
 -- LIBRARY part
+
 
 type alias Request =
     { id : String
@@ -25,11 +27,27 @@ port respond : Response -> Cmd msg
 port receiveRequest : (Request -> msg) -> Sub msg
 
 
+persistentProgram :
+    { init : ( model, Cmd msg )
+    , subscriptions : model -> Sub msg
+    , update : msg -> model -> ( model, Cmd msg )
+    }
+    -> Program Never model msg
+persistentProgram opts =
+    Platform.program
+        { init = Native.Persistent.wrapInit opts.init
+        , subscriptions = opts.subscriptions
+        , update = Native.Persistent.wrapUpdate opts.update
+        }
+
+
+
 -- Application part
+
 
 main : Program Never Int Msg
 main =
-    Platform.program
+    persistentProgram
         { init = init
         , subscriptions = subscriptions
         , update = update

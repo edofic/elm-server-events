@@ -1,3 +1,5 @@
+require('./native.js');
+
 const elm = require('./elm.js');
 const http = require('http');
 const uuidv4 = require('uuid/v4');
@@ -5,6 +7,8 @@ const uuidv4 = require('uuid/v4');
 const app = elm.Main.worker();
 
 const activeResponses = {};
+
+_user$project$Native_Persistent.foo
 
 http.createServer(function (request, response) {
   const id = uuidv4();

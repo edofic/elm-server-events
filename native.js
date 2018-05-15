@@ -18,12 +18,26 @@ process.on('exit', () => stream.end());
 
 // inject globals for elm
 global._user$project$Native_Persistent = {
-  wrapInit(init) {
+  wrapInit({init, update}) {
     if (fs.existsSync('init.txt')) {
+      console.log('replaying')
+
       const raw = fs.readFileSync('init.txt', 'utf8');
-      const readInit = JSON.parse(base64decode(raw));
-      // TODO replay
-      return readInit;
+      let model = JSON.parse(base64decode(raw));
+      console.log('starting with', model)
+
+      // TODO streaming
+      const rawMsgs = fs.readFileSync('log.txt', 'utf8').split('\n')
+      for (let rawMsg of rawMsgs) {
+        if (!rawMsg.length) {
+          continue
+        }
+        console.log('parsing', rawMsg, rawMsg.length)
+        const msg = JSON.parse(base64decode(rawMsg));
+        model = update(msg)(model)._0  // ignore effects when replaying
+        console.log('applied', msg, 'to get', model)
+      }
+      return model
     } else {
       fs.writeFile('init.txt', base64encode(JSON.stringify(init)));
       return init;

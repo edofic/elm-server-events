@@ -37,7 +37,7 @@ persistentProgram :
     -> Program Never model msg
 persistentProgram opts =
     Platform.program
-        { init = ( Native.Persistent.wrapInit opts.init, Cmd.none )
+        { init = ( Native.Persistent.wrapInit opts, Cmd.none )
         , subscriptions = opts.subscriptions
         , update = Native.Persistent.wrapUpdate opts.update
         }

@@ -28,14 +28,16 @@ port receiveRequest : (Request -> msg) -> Sub msg
 
 
 persistentProgram :
-    { init : ( model, Cmd msg )
+    { init :
+        model
+        -- TODO figure out intial effects
     , subscriptions : model -> Sub msg
     , update : msg -> model -> ( model, Cmd msg )
     }
     -> Program Never model msg
 persistentProgram opts =
     Platform.program
-        { init = Native.Persistent.wrapInit opts.init
+        { init = ( Native.Persistent.wrapInit opts.init, Cmd.none )
         , subscriptions = opts.subscriptions
         , update = Native.Persistent.wrapUpdate opts.update
         }
@@ -58,9 +60,9 @@ type Msg
     = IncomingRequest Request
 
 
-init : ( Int, Cmd msg )
+init : Int
 init =
-    ( 0, Cmd.none )
+    0
 
 
 subscriptions : Int -> Sub Msg

@@ -12,9 +12,8 @@ function F2(fun)
 const base64encode = data => Buffer.from(data).toString('base64');
 const base64decode = base64 => Buffer.from(base64, 'base64').toString('utf8');
 
-const stream = fs.createWriteStream('log.txt');
+const stream = fs.createWriteStream('log.txt', {flags: 'a'});
 stream.once('open', () => null);
-
 process.on('exit', () => stream.end());
 
 // inject globals for elm

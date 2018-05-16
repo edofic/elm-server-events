@@ -1,55 +1,11 @@
 port module Main exposing (..)
 
-import Platform
-import Json.Decode
-
-
--- LIBRARY part
-
-
-type alias Request =
-    { id : String
-    , method : String
-    , url : String
-    }
-
-
-type alias Response =
-    { id : String
-    , status : Int
-    , body : String
-    }
-
-
-port respond : Response -> Cmd msg
-
-
-port receiveRequest : (Request -> msg) -> Sub msg
-
-
-persistentProgram :
-    { init :
-        model
-        -- TODO figure out intial effects
-    , subscriptions : model -> Sub msg
-    , update : msg -> model -> ( model, Cmd msg )
-    }
-    -> Program Never model msg
-persistentProgram opts =
-    Platform.program
-        { init = ( Native.Persistent.wrapInit opts, Cmd.none )
-        , subscriptions = opts.subscriptions
-        , update = Native.Persistent.wrapUpdate opts.update
-        }
-
-
-
--- Application part
+import Lib
 
 
 main : Program Never Int Msg
 main =
-    persistentProgram
+    Lib.persistentProgram
         { init = init
         , subscriptions = subscriptions
         , update = update
@@ -57,7 +13,7 @@ main =
 
 
 type Msg
-    = IncomingRequest Request
+    = IncomingRequest Lib.Request
 
 
 init : Int
@@ -67,7 +23,7 @@ init =
 
 subscriptions : Int -> Sub Msg
 subscriptions _ =
-    receiveRequest IncomingRequest
+    Lib.receiveRequest IncomingRequest
 
 
 update : Msg -> Int -> ( Int, Cmd msg )
@@ -76,4 +32,6 @@ update (IncomingRequest req) n =
         str_ =
             "re: " ++ req.id
     in
-        ( Debug.log str_ (n + 1), respond { id = req.id, status = 200, body = "hello " ++ toString n } )
+        ( Debug.log str_ (n + 1)
+        , Lib.respond { id = req.id, status = 200, body = "hello " ++ toString n }
+        )

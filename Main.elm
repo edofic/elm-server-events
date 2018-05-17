@@ -4,7 +4,7 @@ import Lib
 import UrlParser exposing (..)
 
 
-main : Program Never Int (Maybe Msg)
+main : Program Never Int (Lib.Routed Msg)
 main =
     Lib.routedPersistentProgram
         { route = route

@@ -2,6 +2,7 @@ port module Lib
     exposing
         ( Request
         , Response
+        , Routed
         , persistentProgram
         , routedPersistentProgram
         , receiveRequest
@@ -14,8 +15,12 @@ import Navigation
 import UrlParser exposing (..)
 
 
+type alias RequestId =
+    String
+
+
 type alias Request =
-    { id : String
+    { id : RequestId
     , method : String
     , url : String
     }
@@ -26,6 +31,11 @@ type alias Response =
     , status : Int
     , body : String
     }
+
+
+type Routed msg
+    = MsgForRoute msg
+    | Route404 RequestId
 
 
 port respond : Response -> Cmd msg
@@ -59,7 +69,7 @@ routedPersistentProgram :
     , subscriptions : model -> Sub msg
     , update : msg -> model -> ( model, Cmd msg )
     }
-    -> Program Never model (Maybe msg)
+    -> Program Never model (Routed msg)
 routedPersistentProgram opts =
     let
         update =
@@ -67,25 +77,25 @@ routedPersistentProgram opts =
 
         update_ msg model =
             case msg of
-                Just m ->
+                MsgForRoute m ->
                     update m model
 
-                Nothing ->
-                    ( model, Cmd.none )
+                Route404 id ->
+                    ( model, respond { id = id, status = 404, body = "not found" } )
 
         routeRequest request =
             case parsePath opts.route (pathToLocation request.url) of
                 Just route ->
-                    Just (opts.incomingRequest route request)
+                    MsgForRoute (opts.incomingRequest route request)
 
                 Nothing ->
-                    Nothing
+                    Route404 request.id
 
         subRequests =
             receiveRequest routeRequest
 
         subscriptions model =
-            Sub.batch [ subRequests, Sub.map Just (opts.subscriptions model) ]
+            Sub.batch [ subRequests, Sub.map MsgForRoute (opts.subscriptions model) ]
     in
         Platform.program
             { init = ( Native.Persistent.wrapInit opts, Cmd.none )

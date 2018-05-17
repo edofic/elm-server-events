@@ -37,6 +37,6 @@ node main.js
 ## TODO
 
 - separate out the library
-- router
+- handle query string in router
 - cheaper handling of safe HTTTP request
 - consider a more robust storage format

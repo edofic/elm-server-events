@@ -72,7 +72,3 @@ update msg n =
 greeterView : String -> Model -> Lib.Response
 greeterView name _ =
     { status = 200, body = "hello " ++ name }
-
-
-
---, Lib.respond { id = req.id, status = 200, body = "hello " ++ p }

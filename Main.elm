@@ -4,11 +4,11 @@ import Lib
 import UrlParser exposing (..)
 
 
-main : Program Never Int (Lib.Routed Msg)
+main : Program Never Model (Lib.Routed Msg Model)
 main =
     Lib.routedPersistentProgram
-        { route = route
-        , incomingRequest = IncomingRequest
+        { parseRoute = parseRoute
+        , route = route
         , init = init
         , subscriptions = subscriptions
         , update = update
@@ -20,41 +20,59 @@ type Route
     | HelloPerson String
 
 
-route : Parser (Route -> a) a
-route =
+parseRoute : Parser (Route -> a) a
+parseRoute =
     oneOf
         [ map HelloPerson (s "person" </> string)
         , map Hello top
         ]
 
 
+route : Lib.RequestId -> Route -> Lib.RouteAction Msg Model
+route reqId r =
+    case r of
+        HelloPerson person ->
+            Lib.View (greeterView reqId person)
+
+        Hello ->
+            Lib.Dispatch (Bump reqId)
+
+
 type Msg
-    = IncomingRequest Route Lib.Request
+    = Bump Lib.RequestId
 
 
-init : Int
+type alias Model =
+    Int
+
+
+init : Model
 init =
     0
 
 
-subscriptions : Int -> Sub Msg
+subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.none
 
 
-update : Msg -> Int -> ( Int, Cmd msg )
+update : Msg -> Model -> ( Model, Cmd msg )
 update msg n =
     case msg of
-        IncomingRequest Hello req ->
+        Bump reqId ->
             let
                 str_ =
-                    "re: " ++ req.id
+                    "re: " ++ reqId
             in
                 ( Debug.log str_ (n + 1)
-                , Lib.respond { id = req.id, status = 200, body = "hello " ++ toString n }
+                , Lib.respond { id = reqId, status = 200, body = "hello " ++ toString n }
                 )
 
-        IncomingRequest (HelloPerson p) req ->
-            ( n
-            , Lib.respond { id = req.id, status = 200, body = "hello " ++ p }
-            )
+
+greeterView : Lib.RequestId -> String -> Model -> Lib.Response
+greeterView reqId name _ =
+    { id = reqId, status = 200, body = "hello " ++ name }
+
+
+
+--, Lib.respond { id = req.id, status = 200, body = "hello " ++ p }

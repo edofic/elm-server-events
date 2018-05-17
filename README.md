@@ -38,5 +38,4 @@ node main.js
 
 - separate out the library
 - handle query string in router
-- cheaper handling of safe HTTTP request
 - consider a more robust storage format

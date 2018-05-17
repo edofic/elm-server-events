@@ -1,13 +1,4 @@
-port module Lib
-    exposing
-        ( Request
-        , Response
-        , Routed
-        , persistentProgram
-        , routedPersistentProgram
-        , receiveRequest
-        , respond
-        )
+port module Lib exposing (..)
 
 import Platform
 import Json.Decode
@@ -33,9 +24,15 @@ type alias Response =
     }
 
 
-type Routed msg
+type Routed msg model
     = MsgForRoute msg
+    | RouteView (model -> Response)
     | Route404 RequestId
+
+
+type RouteAction msg model
+    = Dispatch msg
+    | View (model -> Response)
 
 
 port respond : Response -> Cmd msg
@@ -61,15 +58,15 @@ persistentProgram opts =
 
 
 routedPersistentProgram :
-    { route : Parser (route -> route) route
-    , incomingRequest : route -> Request -> msg
+    { parseRoute : Parser (route -> route) route
+    , route : RequestId -> route -> RouteAction msg model
     , init :
         model
         -- TODO figure out intial effects
     , subscriptions : model -> Sub msg
     , update : msg -> model -> ( model, Cmd msg )
     }
-    -> Program Never model (Routed msg)
+    -> Program Never model (Routed msg model)
 routedPersistentProgram opts =
     let
         update =
@@ -80,13 +77,21 @@ routedPersistentProgram opts =
                 MsgForRoute m ->
                     update m model
 
+                RouteView f ->
+                    ( model, respond (f model) )
+
                 Route404 id ->
                     ( model, respond { id = id, status = 404, body = "not found" } )
 
         routeRequest request =
-            case parsePath opts.route (pathToLocation request.url) of
+            case parsePath opts.parseRoute (pathToLocation request.url) of
                 Just route ->
-                    MsgForRoute (opts.incomingRequest route request)
+                    case opts.route request.id route of
+                        Dispatch userMsg ->
+                            MsgForRoute userMsg
+
+                        View f ->
+                            RouteView f
 
                 Nothing ->
                     Route404 request.id

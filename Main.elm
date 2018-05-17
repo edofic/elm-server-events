@@ -32,7 +32,7 @@ route : Lib.RequestId -> Route -> Lib.RouteAction Msg Model
 route reqId r =
     case r of
         HelloPerson person ->
-            Lib.View (greeterView reqId person)
+            Lib.View (greeterView person)
 
         Hello ->
             Lib.Dispatch (Bump reqId)
@@ -65,13 +65,13 @@ update msg n =
                     "re: " ++ reqId
             in
                 ( Debug.log str_ (n + 1)
-                , Lib.respond { id = reqId, status = 200, body = "hello " ++ toString n }
+                , Lib.respond { reqId = reqId, response = { status = 200, body = "hello " ++ toString n } }
                 )
 
 
-greeterView : Lib.RequestId -> String -> Model -> Lib.Response
-greeterView reqId name _ =
-    { id = reqId, status = 200, body = "hello " ++ name }
+greeterView : String -> Model -> Lib.Response
+greeterView name _ =
+    { status = 200, body = "hello " ++ name }
 
 
 

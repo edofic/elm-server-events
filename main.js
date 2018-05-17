@@ -22,10 +22,10 @@ http.createServer(function (request, response) {
 }).listen(8080);
 
 app.ports.respond.subscribe(response => {
-  const pending = activeResponses[response.id];
-  delete activeResponses[response.id];
-  pending.writeHead(response.status, {'Content-Type': 'text/plain'});
-  pending.end(response.body);
+  const pending = activeResponses[response.reqId];
+  delete activeResponses[response.reqId];
+  pending.writeHead(response.response.status, {'Content-Type': 'text/plain'});
+  pending.end(response.response.body);
 });
 
 console.log('Server running at http://127.0.0.1:8080/');

@@ -18,15 +18,18 @@ type alias Request =
 
 
 type alias Response =
-    { id : String
-    , status : Int
+    { status : Int
     , body : String
     }
 
 
+type alias DirectedResponse =
+    { reqId : RequestId, response : Response }
+
+
 type Routed msg model
     = MsgForRoute msg
-    | RouteView (model -> Response)
+    | RouteView RequestId (model -> Response)
     | Route404 RequestId
 
 
@@ -35,7 +38,7 @@ type RouteAction msg model
     | View (model -> Response)
 
 
-port respond : Response -> Cmd msg
+port respond : DirectedResponse -> Cmd msg
 
 
 port receiveRequest : (Request -> msg) -> Sub msg
@@ -77,11 +80,17 @@ routedPersistentProgram opts =
                 MsgForRoute m ->
                     update m model
 
-                RouteView f ->
-                    ( model, respond (f model) )
+                RouteView reqId f ->
+                    ( model, respond { reqId = reqId, response = (f model) } )
 
                 Route404 id ->
-                    ( model, respond { id = id, status = 404, body = "not found" } )
+                    ( model
+                    , respond
+                        { reqId = id
+                        , response =
+                            { status = 404, body = "not found" }
+                        }
+                    )
 
         routeRequest request =
             case parsePath opts.parseRoute (pathToLocation request.url) of
@@ -91,7 +100,7 @@ routedPersistentProgram opts =
                             MsgForRoute userMsg
 
                         View f ->
-                            RouteView f
+                            RouteView request.id f
 
                 Nothing ->
                     Route404 request.id

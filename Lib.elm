@@ -27,10 +27,13 @@ type alias DirectedResponse =
     { reqId : RequestId, response : Response }
 
 
-type Routed msg model
-    = MsgForRoute msg
-    | RouteView RequestId (model -> Response)
-    | Route404 RequestId
+type alias Routed msg model =
+    Requested (Maybe (RouteAction msg model))
+
+
+type Requested a
+    = Requested RequestId a
+    | Direct a
 
 
 type RouteAction msg model
@@ -77,39 +80,39 @@ routedPersistentProgram opts =
 
         update_ msg model =
             case msg of
-                MsgForRoute m ->
-                    update m model
+                Requested reqId action ->
+                    case action of
+                        Nothing ->
+                            ( model
+                            , respond
+                                { reqId = reqId
+                                , response =
+                                    { status = 404, body = "not found" }
+                                }
+                            )
 
-                RouteView reqId f ->
-                    ( model, respond { reqId = reqId, response = (f model) } )
+                        Just (Dispatch m) ->
+                            update m model
 
-                Route404 id ->
-                    ( model
-                    , respond
-                        { reqId = id
-                        , response =
-                            { status = 404, body = "not found" }
-                        }
-                    )
+                        Just (View f) ->
+                            ( model, respond { reqId = reqId, response = (f model) } )
+
+                Direct msg ->
+                    update msg model
 
         routeRequest request =
             case parsePath opts.parseRoute (pathToLocation request.url) of
                 Just route ->
-                    case opts.route request.id route of
-                        Dispatch userMsg ->
-                            MsgForRoute userMsg
-
-                        View f ->
-                            RouteView request.id f
+                    Requested request.id (Just (opts.route request.id route))
 
                 Nothing ->
-                    Route404 request.id
+                    Requested request.id Nothing
 
         subRequests =
             receiveRequest routeRequest
 
         subscriptions model =
-            Sub.batch [ subRequests, Sub.map MsgForRoute (opts.subscriptions model) ]
+            Sub.batch [ subRequests, Sub.map (Direct << Just << Dispatch) (opts.subscriptions model) ]
     in
         Platform.program
             { init = ( Native.Persistent.wrapInit opts, Cmd.none )

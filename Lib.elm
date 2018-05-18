@@ -27,13 +27,10 @@ type alias DirectedResponse =
     { reqId : RequestId, response : Response }
 
 
-type alias Routed msg model =
-    Requested (Maybe (RouteAction msg model))
-
-
-type Requested a
-    = Requested RequestId a
-    | Direct a
+type Routed msg model
+    = Requested RequestId (RouteAction msg model)
+    | Route404 RequestId
+    | Direct msg
 
 
 type RouteAction msg model
@@ -75,6 +72,7 @@ routedPersistentProgram :
     -> Program Never model (Routed msg model)
 routedPersistentProgram opts =
     let
+        update : msg -> model -> ( model, Cmd msg )
         update =
             Native.Persistent.wrapUpdate opts.update
 
@@ -82,37 +80,45 @@ routedPersistentProgram opts =
             case msg of
                 Requested reqId action ->
                     case action of
-                        Nothing ->
-                            ( model
-                            , respond
-                                { reqId = reqId
-                                , response =
-                                    { status = 404, body = "not found" }
-                                }
-                            )
+                        Dispatch m ->
+                            let
+                                ( model_, cmd ) =
+                                    update m model
+                            in
+                                ( model_, Cmd.map Direct cmd )
 
-                        Just (Dispatch m) ->
-                            update m model
-
-                        Just (View f) ->
+                        View f ->
                             ( model, respond { reqId = reqId, response = (f model) } )
 
+                Route404 reqId ->
+                    ( model
+                    , respond
+                        { reqId = reqId
+                        , response =
+                            { status = 404, body = "not found" }
+                        }
+                    )
+
                 Direct msg ->
-                    update msg model
+                    let
+                        ( model_, cmd ) =
+                            update msg model
+                    in
+                        ( model_, Cmd.map Direct cmd )
 
         routeRequest request =
             case parsePath opts.parseRoute (pathToLocation request.url) of
                 Just route ->
-                    Requested request.id (Just (opts.route request.id route))
+                    Requested request.id (opts.route request.id route)
 
                 Nothing ->
-                    Requested request.id Nothing
+                    Route404 request.id
 
         subRequests =
             receiveRequest routeRequest
 
         subscriptions model =
-            Sub.batch [ subRequests, Sub.map (Direct << Just << Dispatch) (opts.subscriptions model) ]
+            Sub.batch [ subRequests, Sub.map Direct (opts.subscriptions model) ]
     in
         Platform.program
             { init = ( Native.Persistent.wrapInit opts, Cmd.none )

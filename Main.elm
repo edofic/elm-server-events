@@ -64,8 +64,8 @@ type alias Orderbook =
 
 normalizeOrderbook : Orderbook -> Orderbook
 normalizeOrderbook { bids, asks } =
-    { bids = List.sortBy (\o -> -o.price) bids
-    , asks = List.sortBy (\o -> o.price) asks
+    { bids = List.take 1000 (List.sortBy (\o -> -o.price) bids)
+    , asks = List.take 1000 (List.sortBy (\o -> o.price) asks)
     }
 
 
@@ -87,7 +87,6 @@ type alias UserId =
 
 type alias Model =
     { orderbook : Orderbook
-    , balances : Dict.Dict UserId Int
     }
 
 
@@ -124,7 +123,6 @@ matchOne model =
 init : Model
 init =
     { orderbook = { bids = [], asks = [] }
-    , balances = Dict.fromList [ ( 1, 1000 ), ( 2, 1000 ) ]
     }
 
 

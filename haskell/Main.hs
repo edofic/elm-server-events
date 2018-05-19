@@ -5,7 +5,7 @@
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar)
 import Control.Monad (forever)
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (ToJSON)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (sortOn)
@@ -69,7 +69,7 @@ update :: Msg -> Model -> Model
 update (PlaceOrder order) model = placeOrder order model
 
 main :: IO ()
-main =  do
+main = do
   app <- eventSource initial update route
   scotty 3000 app
   where
@@ -94,7 +94,12 @@ main =  do
         liftIO $ takeMVar done -- await for the order to be processed
         html "ok"
 
-eventSource :: model -> (msg -> model -> model) -> (ActionM model -> (msg -> ActionM (MVar ())) -> ScottyM a) -> IO (ScottyM a)
+eventSource ::
+     MonadIO m
+  => model
+  -> (msg -> model -> model)
+  -> (m model -> (msg -> m (MVar ())) -> a)
+  -> IO a
 eventSource initial update setup = do
   state <- newIORef $ initial
   queue <- newEmptyMVar

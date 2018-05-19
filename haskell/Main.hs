@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar, readMVar)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (ToJSON)
@@ -65,8 +65,8 @@ placeOrder order orderbook@(Orderbook {asks, bids}) =
 data Msg =
   PlaceOrder Order
 
-update :: Msg -> Model -> Model
-update (PlaceOrder order) model = placeOrder order model
+update :: Msg -> Model -> (Model, ())
+update (PlaceOrder order) model = (placeOrder order model, ())
 
 main :: IO ()
 main = do
@@ -83,22 +83,20 @@ main = do
         userId <- param "userId"
         price <- param "price"
         let order = Order {userId = userId, price = price, orderType = Sell}
-        done <- dispatch $ PlaceOrder order
-        liftIO $ takeMVar done -- await for the order to be processed
+        dispatch $ PlaceOrder order
         html "ok"
       get "/buy/:userId/:price" $ do
         userId <- param "userId"
         price <- param "price"
         let order = Order {userId = userId, price = price, orderType = Buy}
-        done <- dispatch $ PlaceOrder order
-        liftIO $ takeMVar done -- await for the order to be processed
+        dispatch $ PlaceOrder order
         html "ok"
 
 eventSource ::
      MonadIO m
   => model
-  -> (msg -> model -> model)
-  -> (m model -> (msg -> m (MVar ())) -> a)
+  -> (msg -> model -> (model, done))
+  -> (m model -> (msg -> m done) -> a)
   -> IO a
 eventSource initial update setup = do
   state <- newIORef $ initial
@@ -108,10 +106,12 @@ eventSource initial update setup = do
         liftIO $ do
           doneMVar <- newEmptyMVar
           putMVar queue (msg, doneMVar)
-          return doneMVar
+          readMVar doneMVar
   forkIO $
     forever $ do
       (msg, doneMVar) <- takeMVar queue
-      modifyIORef' state $ update msg
-      putMVar doneMVar ()
+      currentState <- readIORef state
+      let (nextState, response) = update msg currentState
+      nextState `seq` writeIORef state nextState
+      putMVar doneMVar response
   return $ setup snapshot dispatch

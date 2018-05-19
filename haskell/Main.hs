@@ -2,6 +2,9 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+import Control.Concurrent (forkIO)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import Control.Monad (forever)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (ToJSON)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
@@ -47,8 +50,8 @@ matchOne orderbook = orderbook
 normalizeOrderbook :: Orderbook -> Orderbook
 normalizeOrderbook Orderbook {asks, bids} = Orderbook asks' bids'
   where
-    asks' = sortOn price asks
-    bids' = sortOn (negate . price) bids
+    asks' = take 100 $ sortOn price asks
+    bids' = take 100 $ sortOn (negate . price) bids
 
 placeOrder :: Order -> Orderbook -> Orderbook
 placeOrder order orderbook@(Orderbook {asks, bids}) =
@@ -61,6 +64,11 @@ placeOrder order orderbook@(Orderbook {asks, bids}) =
 main :: IO ()
 main = do
   state <- newIORef $ Orderbook [] []
+  queue <- newEmptyMVar
+  forkIO $
+    forever $ do
+      order <- takeMVar queue
+      modifyIORef' state $ placeOrder order
   scotty 3000 $ do
     get "/" $ html "hello"
     get "/orderbook" $ do
@@ -69,12 +77,12 @@ main = do
     get "/sell/:userId/:price" $ do
       userId <- param "userId"
       price <- param "price"
-      let order = Order { userId = userId, price=price, orderType = Sell }
+      let order = Order {userId = userId, price = price, orderType = Sell}
       liftIO $ modifyIORef' state $ placeOrder order
       html "ok"
     get "/buy/:userId/:price" $ do
       userId <- param "userId"
       price <- param "price"
-      let order = Order { userId = userId, price=price, orderType = Buy }
-      liftIO $ modifyIORef' state $ placeOrder order
+      let order = Order {userId = userId, price = price, orderType = Buy}
+      liftIO $ putMVar queue order
       html "ok"

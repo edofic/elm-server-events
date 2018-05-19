@@ -61,14 +61,22 @@ placeOrder order orderbook@(Orderbook {asks, bids}) =
           Sell -> orderbook {asks = order : asks}
   in matchOne $ normalizeOrderbook orderbook'
 
+
+data Msg = PlaceOrder Order
+
+update :: Msg -> Model -> Model
+update (PlaceOrder order) model = placeOrder order model
+
+
 main :: IO ()
 main = do
   state <- newIORef $ Orderbook [] []
   queue <- newEmptyMVar
+  let dispatch msg = liftIO $ putMVar queue msg
   forkIO $
     forever $ do
-      order <- takeMVar queue
-      modifyIORef' state $ placeOrder order
+      msg <- takeMVar queue
+      modifyIORef' state $ update msg
   scotty 3000 $ do
     get "/" $ html "hello"
     get "/orderbook" $ do
@@ -78,11 +86,11 @@ main = do
       userId <- param "userId"
       price <- param "price"
       let order = Order {userId = userId, price = price, orderType = Sell}
-      liftIO $ modifyIORef' state $ placeOrder order
+      dispatch $ PlaceOrder order
       html "ok"
     get "/buy/:userId/:price" $ do
       userId <- param "userId"
       price <- param "price"
       let order = Order {userId = userId, price = price, orderType = Buy}
-      liftIO $ putMVar queue order
+      dispatch $ PlaceOrder order
       html "ok"

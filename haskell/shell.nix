@@ -4,15 +4,16 @@ let
 
   inherit (nixpkgs) pkgs;
 
-  f = { mkDerivation, base, scotty, stdenv }:
+  f = { mkDerivation, aeson, base, scotty, stdenv }:
       mkDerivation {
         pname = "hs";
         version = "0.1.0.0";
         src = ./.;
         isLibrary = false;
         isExecutable = true;
-        executableHaskellDepends = [ base scotty ];
-        license = stdenv.lib.licenses.bsd3;
+        executableHaskellDepends = [ aeson base scotty ];
+        license = stdenv.lib.licenses.unfree;
+        hydraPlatforms = stdenv.lib.platforms.none;
       };
 
   haskellPackages = if compiler == "default"

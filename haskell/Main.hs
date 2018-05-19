@@ -1,8 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 import Web.Scotty
 
-import Data.Monoid (mconcat)
+import Control.Monad.IO.Class (liftIO)
+import Data.Monoid ((<>))
+import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef')
+import Data.String (fromString)
 
-main = scotty 3000 $
+
+main = do
+  state <- newIORef (0 :: Int)
+  scotty 3000 $
     get "/" $ do
-        html "Hello"
+      n <- liftIO $ do
+        current <- readIORef state
+        let new = current + 1
+        writeIORef state new
+        return new
+      html $ "Hello " <> fromString (show n)

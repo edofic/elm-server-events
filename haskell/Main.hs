@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (ToJSON)
@@ -15,6 +15,7 @@ import Data.String (fromString)
 import GHC.Generics (Generic)
 
 import Web.Scotty
+import qualified Web.Scotty.Trans as T
 
 type UserId = Int
 
@@ -68,9 +69,36 @@ update :: Msg -> Model -> Model
 update (PlaceOrder order) model = placeOrder order model
 
 main :: IO ()
-main = do
-  state <- newIORef $ Orderbook [] []
+main =  do
+  app <- eventSource initial update route
+  scotty 3000 app
+  where
+    initial = Orderbook [] []
+    route snapshot dispatch = do
+      get "/" $ html "hello"
+      get "/orderbook" $ do
+        orderbook <- snapshot
+        json orderbook
+      get "/sell/:userId/:price" $ do
+        userId <- param "userId"
+        price <- param "price"
+        let order = Order {userId = userId, price = price, orderType = Sell}
+        done <- dispatch $ PlaceOrder order
+        liftIO $ takeMVar done -- await for the order to be processed
+        html "ok"
+      get "/buy/:userId/:price" $ do
+        userId <- param "userId"
+        price <- param "price"
+        let order = Order {userId = userId, price = price, orderType = Buy}
+        done <- dispatch $ PlaceOrder order
+        liftIO $ takeMVar done -- await for the order to be processed
+        html "ok"
+
+eventSource :: model -> (msg -> model -> model) -> (ActionM model -> (msg -> ActionM (MVar ())) -> ScottyM a) -> IO (ScottyM a)
+eventSource initial update setup = do
+  state <- newIORef $ initial
   queue <- newEmptyMVar
+  let snapshot = liftIO $ readIORef state
   let dispatch msg =
         liftIO $ do
           doneMVar <- newEmptyMVar
@@ -81,22 +109,4 @@ main = do
       (msg, doneMVar) <- takeMVar queue
       modifyIORef' state $ update msg
       putMVar doneMVar ()
-  scotty 3000 $ do
-    get "/" $ html "hello"
-    get "/orderbook" $ do
-      orderbook <- liftIO $ readIORef state
-      json orderbook
-    get "/sell/:userId/:price" $ do
-      userId <- param "userId"
-      price <- param "price"
-      let order = Order {userId = userId, price = price, orderType = Sell}
-      done <- dispatch $ PlaceOrder order
-      liftIO $ takeMVar done  -- await for the order to be processed
-      html "ok"
-    get "/buy/:userId/:price" $ do
-      userId <- param "userId"
-      price <- param "price"
-      let order = Order {userId = userId, price = price, orderType = Buy}
-      done <- dispatch $ PlaceOrder order
-      liftIO $ takeMVar done  -- await for the order to be processed
-      html "ok"
+  return $ setup snapshot dispatch

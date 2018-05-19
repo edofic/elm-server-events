@@ -3,16 +3,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar, readMVar)
-import Control.Monad (forever)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar, takeMVar)
+import Control.Monad (forM_, forever)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Aeson (ToJSON)
+import Data.Aeson (FromJSON, ToJSON, decode, encode)
+import qualified Data.ByteString.Lazy as LBS
+import Data.Foldable (foldl')
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.List (sortOn)
 import Data.Monoid ((<>))
 import Data.String (fromString)
-
 import GHC.Generics (Generic)
+import System.Directory (doesFileExist)
+import System.IO (IOMode(AppendMode), hFlush, openFile)
 
 import Web.Scotty
 import qualified Web.Scotty.Trans as T
@@ -26,6 +29,8 @@ data OrderType
 
 instance ToJSON OrderType
 
+instance FromJSON OrderType
+
 data Order = Order
   { userId :: UserId
   , price :: Int
@@ -34,12 +39,16 @@ data Order = Order
 
 instance ToJSON Order
 
+instance FromJSON Order
+
 data Orderbook = Orderbook
   { asks :: [Order]
   , bids :: [Order]
   } deriving (Eq, Show, Generic)
 
 instance ToJSON Orderbook
+
+instance FromJSON Orderbook
 
 type Model = Orderbook
 
@@ -64,6 +73,11 @@ placeOrder order orderbook@(Orderbook {asks, bids}) =
 
 data Msg =
   PlaceOrder Order
+  deriving (Eq, Show, Generic)
+
+instance FromJSON Msg
+
+instance ToJSON Msg
 
 update :: Msg -> Model -> (Model, ())
 update (PlaceOrder order) model = (placeOrder order model, ())
@@ -93,7 +107,7 @@ main = do
         html "ok"
 
 eventSource ::
-     MonadIO m
+     (MonadIO m, ToJSON model, FromJSON model, ToJSON msg, FromJSON msg)
   => model
   -> (msg -> model -> (model, done))
   -> (m model -> (msg -> m done) -> a)
@@ -107,11 +121,36 @@ eventSource initial update setup = do
           doneMVar <- newEmptyMVar
           putMVar queue (msg, doneMVar)
           readMVar doneMVar
+  initExists <- doesFileExist "init.txt"
+  logExists <- doesFileExist "log.txt"
+  if initExists && logExists
+    then do
+      Just initial <- decode <$> LBS.readFile "init.txt"
+      updates <- readJsonLines "log.txt"
+      let final = foldl' (\model msg -> fst (update msg model)) initial updates
+      final `seq` writeIORef state final
+    else LBS.writeFile "init.txt" (encode initial)
+  logFile <- openFile "log.txt" AppendMode
+  let update' msg model = do
+        LBS.hPut logFile $ encode msg
+        LBS.hPut logFile "\n"
+        hFlush logFile
+        return $ update msg model
   forkIO $
     forever $ do
       (msg, doneMVar) <- takeMVar queue
       currentState <- readIORef state
-      let (nextState, response) = update msg currentState
+      (nextState, response) <- update' msg currentState
       nextState `seq` writeIORef state nextState
       putMVar doneMVar response
   return $ setup snapshot dispatch
+
+readJsonLines :: (FromJSON a) => FilePath -> IO [a]
+readJsonLines path = processFile <$> LBS.readFile path
+  where
+    processFile bs =
+      let (line, rest) = LBS.break (\w -> w == 10) bs
+      in if LBS.length line > 0
+           then let Just a = decode line
+                in a : processFile (LBS.drop 1 rest)
+           else LBS.length rest `seq` []

@@ -15,7 +15,7 @@ import Data.Monoid ((<>))
 import Data.String (fromString)
 import GHC.Generics (Generic)
 import System.Directory (doesFileExist)
-import System.IO (IOMode(AppendMode), hFlush, openFile)
+import System.IO (Handle, IOMode(AppendMode), hFlush, openFile)
 
 import Web.Scotty
 import qualified Web.Scotty.Trans as T
@@ -113,14 +113,29 @@ eventSource ::
   -> (m model -> (msg -> m done) -> a)
   -> IO a
 eventSource initial update setup = do
-  state <- newIORef $ initial
+  state <- replay initial update >>= newIORef
   queue <- newEmptyMVar
-  let snapshot = liftIO $ readIORef state
-  let dispatch msg =
-        liftIO $ do
-          doneMVar <- newEmptyMVar
-          putMVar queue (msg, doneMVar)
-          readMVar doneMVar
+  logFile <- openFile "log.txt" AppendMode
+  let update' = wrapUpdate logFile update
+  forkIO $ runEventLoop queue state update'
+  return $ setup (snapshot state) (dispatch queue)
+
+snapshot :: (MonadIO m) => IORef model -> m model
+snapshot = liftIO . readIORef
+
+dispatch :: (MonadIO m) => MVar (msg, MVar done) -> msg -> m done
+dispatch queue msg =
+  liftIO $ do
+    doneMVar <- newEmptyMVar
+    putMVar queue (msg, doneMVar)
+    readMVar doneMVar
+
+replay ::
+     (FromJSON model, ToJSON model, FromJSON msg)
+  => model
+  -> (msg -> model -> (model, done))
+  -> IO model
+replay initial update = do
   initExists <- doesFileExist "init.txt"
   logExists <- doesFileExist "log.txt"
   if initExists && logExists
@@ -128,22 +143,35 @@ eventSource initial update setup = do
       Just initial <- decode <$> LBS.readFile "init.txt"
       updates <- readJsonLines "log.txt"
       let final = foldl' (\model msg -> fst (update msg model)) initial updates
-      final `seq` writeIORef state final
-    else LBS.writeFile "init.txt" (encode initial)
-  logFile <- openFile "log.txt" AppendMode
-  let update' msg model = do
-        LBS.hPut logFile $ encode msg
-        LBS.hPut logFile "\n"
-        hFlush logFile
-        return $ update msg model
-  forkIO $
-    forever $ do
-      (msg, doneMVar) <- takeMVar queue
-      currentState <- readIORef state
-      (nextState, response) <- update' msg currentState
-      nextState `seq` writeIORef state nextState
-      putMVar doneMVar response
-  return $ setup snapshot dispatch
+      final `seq` return final
+    else do
+      LBS.writeFile "init.txt" (encode initial)
+      return initial
+
+wrapUpdate ::
+     (ToJSON msg)
+  => Handle
+  -> (msg -> model -> (model, done))
+  -> (msg -> model -> IO (model, done))
+wrapUpdate logFile update =
+  \msg model -> do
+    LBS.hPut logFile $ encode msg
+    LBS.hPut logFile "\n"
+    hFlush logFile
+    return $ update msg model
+
+runEventLoop ::
+     MVar (msg, MVar done)
+  -> IORef model
+  -> (msg -> model -> IO (model, done))
+  -> IO ()
+runEventLoop queue state update =
+  forever $ do
+    (msg, doneMVar) <- takeMVar queue
+    currentState <- readIORef state
+    (nextState, response) <- update msg currentState
+    nextState `seq` writeIORef state nextState
+    putMVar doneMVar response
 
 readJsonLines :: (FromJSON a) => FilePath -> IO [a]
 readJsonLines path = processFile <$> LBS.readFile path

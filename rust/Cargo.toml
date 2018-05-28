@@ -1,0 +1,11 @@
+[package]
+name = "rust"
+version = "0.1.0"
+authors = ["Andraz Bajt <andraz@bajt.me>"]
+
+[dependencies]
+actix-web = "0.6.10"
+
+[[bin]]
+name = "rust"
+path = "main.rs"

@@ -5,6 +5,10 @@ authors = ["Andraz Bajt <andraz@bajt.me>"]
 
 [dependencies]
 actix-web = "0.6.10"
+json = "0.11.13"
+serde = "1.0.63"
+serde_derive = "1.0.63"
+serde_json = "1.0.18"
 
 [[bin]]
 name = "rust"

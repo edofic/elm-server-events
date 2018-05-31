@@ -8,44 +8,44 @@ MAX_ORDERBOOK_LEN = 100
 Order = collections.namedtuple('Order', 'userId, orderType, price')
 
 
-class OrderBook(object):
+class OrderBook(collections.namedtuple('OrderBook', 'asks, bids')):
 
-    def __init__(self):
-        self._bids = []
-        self._asks = []
+    @staticmethod
+    def empty():
+        return OrderBook((), ())
 
     def placeOrder(self, userId, orderType, price):
         assert isinstance(userId, int)
         assert orderType in ('buy', 'sell')
         assert isinstance(price, int)
         order = Order(userId, orderType, price)
+        asks, bids = list(self.asks), list(self.bids)
         if orderType == 'buy':
-            self._bids.append(order)
-            self._bids.sort(key=lambda bid: bid.price)
-            while len(self._bids) > MAX_ORDERBOOK_LEN:
-                self._bids.pop()
+            bids.append(order)
+            bids.sort(key=lambda bid: bid.price)
+            while len(bids) > MAX_ORDERBOOK_LEN:
+                bids.pop()
         else:
-            self._asks.append(order)
-            self._asks.sort(key=lambda ask: -ask.price)
-            while len(self._asks) > MAX_ORDERBOOK_LEN:
-                self._bids.pop()
+            asks.append(order)
+            asks.sort(key=lambda ask: -ask.price)
+            while len(asks) > MAX_ORDERBOOK_LEN:
+                bids.pop()
 
-        if not (self._bids and self._asks):
-            return
+        if bids and asks and bids[-1].price > asks[-1].price:
+            bids.pop()
+            asks.pop()
 
-        if self._bids[-1].price >= self._asks[-1].price:
-            self._bids.pop()
-            self._asks.pop()
+        return OrderBook(tuple(asks), tuple(bids))
 
     def toJSON(self):
         return json.dumps({
-          'asks': self._asks,
-          'bids': self._bids,
+            'asks': self.asks,
+            'bids': self.bids,
         })
 
 
 app = Flask(__name__)
-app.orderbook = OrderBook()
+app.orderbook = OrderBook.empty()
 
 
 @app.route('/')
@@ -64,13 +64,13 @@ def orderbook():
 
 @app.route('/buy/<int:userId>/<int:price>')
 def buy(userId, price):
-    app.orderbook.placeOrder(userId, 'buy', price)
+    app.orderbook = app.orderbook.placeOrder(userId, 'buy', price)
     return 'ok'
 
 
 @app.route('/sell/<int:userId>/<int:price>')
 def sell(userId, price):
-    app.orderbook.placeOrder(userId, 'sell', price)
+    app.orderbook = app.orderbook.placeOrder(userId, 'sell', price)
     return 'ok'
 
 

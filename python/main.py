@@ -15,33 +15,33 @@ class OrderBook(object):
         self._asks = []
 
     def placeOrder(self, userId, orderType, price):
-      assert isinstance(userId, int)
-      assert orderType in ('buy', 'sell')
-      assert isinstance(price, int)
-      order = Order(userId, orderType, price)
-      if orderType == 'buy':
-        self._bids.append(order)
-        self._bids.sort(key=lambda bid: bid.price)
-        while len(self._bids) > MAX_ORDERBOOK_LEN:
-          self._bids.pop()
-      else:
-        self._asks.append(order)
-        self._asks.sort(key=lambda ask: -ask.price)
-        while len(self._asks) > MAX_ORDERBOOK_LEN:
-          self._bids.pop()
+        assert isinstance(userId, int)
+        assert orderType in ('buy', 'sell')
+        assert isinstance(price, int)
+        order = Order(userId, orderType, price)
+        if orderType == 'buy':
+            self._bids.append(order)
+            self._bids.sort(key=lambda bid: bid.price)
+            while len(self._bids) > MAX_ORDERBOOK_LEN:
+                self._bids.pop()
+        else:
+            self._asks.append(order)
+            self._asks.sort(key=lambda ask: -ask.price)
+            while len(self._asks) > MAX_ORDERBOOK_LEN:
+                self._bids.pop()
 
-      if not (self._bids and self._asks):
-        return
+        if not (self._bids and self._asks):
+            return
 
-      if self._bids[-1].price >= self._asks[-1].price:
-        self._bids.pop()
-        self._asks.pop()
+        if self._bids[-1].price >= self._asks[-1].price:
+            self._bids.pop()
+            self._asks.pop()
 
     def toJSON(self):
-      return json.dumps({
+        return json.dumps({
           'asks': self._asks,
           'bids': self._bids,
-      })
+        })
 
 
 app = Flask(__name__)
@@ -64,15 +64,15 @@ def orderbook():
 
 @app.route('/buy/<int:userId>/<int:price>')
 def buy(userId, price):
-  app.orderbook.placeOrder(userId, 'buy', price)
-  return 'ok'
+    app.orderbook.placeOrder(userId, 'buy', price)
+    return 'ok'
 
 
 @app.route('/sell/<int:userId>/<int:price>')
 def sell(userId, price):
-  app.orderbook.placeOrder(userId, 'sell', price)
-  return 'ok'
+    app.orderbook.placeOrder(userId, 'sell', price)
+    return 'ok'
 
 
 if __name__ == '__main__':
-  app.run(host='0.0.0.0', port='8080')
+    app.run(host='0.0.0.0', port='8080')

@@ -3,8 +3,13 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 
+mod lib;
+
 use actix_web::{http, server, App, HttpRequest, HttpResponse, Path, Responder, State};
-use std::sync::{Arc, Mutex};
+
+use lib::{EventSourced, ManagedState};
+
+type AppState = ManagedState<Orderbook>;
 
 #[derive(Serialize)]
 struct Orderbook {
@@ -62,8 +67,6 @@ impl EventSourced for Orderbook {
     }
 }
 
-type AppState = ManagedState<Orderbook>;
-
 fn index(_info: HttpRequest<AppState>) -> impl Responder {
     format!("Hello")
 }
@@ -111,46 +114,4 @@ fn main() {
     }).bind("127.0.0.1:8080")
         .unwrap()
         .run()
-}
-
-trait EventSourced {
-    type Msg;
-    fn update(&mut self, msg: Self::Msg);
-}
-
-struct ManagedState<S> {
-    current_state: Arc<Mutex<S>>,
-}
-
-// TODO why does the derived version not work?
-impl<S> Clone for ManagedState<S> {
-    fn clone(&self) -> ManagedState<S> {
-        ManagedState {
-            current_state: self.current_state.clone(),
-        }
-    }
-}
-
-impl<S> ManagedState<S>
-where
-    S: EventSourced,
-{
-    fn new(initial_state: S) -> ManagedState<S> {
-        ManagedState {
-            current_state: Arc::new(Mutex::new(initial_state)),
-        }
-    }
-
-    fn with_snapshot<F, A>(&self, f: F) -> A
-    where
-        F: Fn(&S) -> A,
-    {
-        let current_state = &*self.current_state.lock().unwrap();
-        f(current_state)
-    }
-
-    fn dispatch(&self, msg: S::Msg) {
-        let mut current_state = self.current_state.lock().unwrap();
-        current_state.update(msg);
-    }
 }

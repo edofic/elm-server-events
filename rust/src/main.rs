@@ -104,7 +104,7 @@ fn main() {
         asks: Vec::new(),
         bids: Vec::new(),
     };
-    let initial_state = ManagedState::new(initial_orderbook);
+    let initial_state = ManagedState::new(initial_orderbook).unwrap();
     server::new(move || {
         App::with_state(initial_state.clone())
             .resource("/", |r| r.get().f(index))

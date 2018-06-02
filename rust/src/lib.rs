@@ -1,10 +1,13 @@
+extern crate actix;
 extern crate serde;
 extern crate serde_json;
 
 use std::fs::{File, OpenOptions};
 use std::io;
-use std::io::{Read, Write, BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::sync::{Arc, Mutex};
+
+use self::actix::Actor;
 
 pub trait EventSourced {
     type Msg;
@@ -12,7 +15,8 @@ pub trait EventSourced {
 }
 
 pub struct ManagedState<S> {
-    current_state: Arc<Mutex<(S, File)>>,
+    current_state: Arc<Mutex<S>>,
+    writer_addr: actix::Addr<actix::Syn, MsgWriter>,
 }
 
 // TODO why does the derived version not work?
@@ -20,6 +24,7 @@ impl<S> Clone for ManagedState<S> {
     fn clone(&self) -> ManagedState<S> {
         ManagedState {
             current_state: self.current_state.clone(),
+            writer_addr: self.writer_addr.clone(),
         }
     }
 }
@@ -38,8 +43,11 @@ where
             Self::store_initial(initial_state)
         })?;
         let log_file = OpenOptions::new().write(true).append(true).open("log.txt")?;
+        let writer = MsgWriter { log_file };
+        let writer_addr: actix::Addr<actix::Syn, _> = writer.start();
         Ok(ManagedState {
-            current_state: Arc::new(Mutex::new((state, log_file))),
+            current_state: Arc::new(Mutex::new(state)),
+            writer_addr: writer_addr,
         })
     }
 
@@ -73,16 +81,55 @@ where
     where
         F: Fn(&S) -> A,
     {
-        let (current_state, _) = &*self.current_state.lock().unwrap();
+        let current_state = &*self.current_state.lock().unwrap();
         f(current_state)
     }
 
     pub fn dispatch(&self, msg: S::Msg) {
         let json_msg = serde_json::to_string(&msg).unwrap();
+        let mut writer_msg = WriteMsg {
+            data: Box::new(json_msg),
+        };
         let mut current_state = self.current_state.lock().unwrap();
-        // TODO do not block while holding the lock
-        current_state.1.write_all(json_msg.as_bytes()).unwrap();
-        current_state.1.write_all(b"\n").unwrap();
-        current_state.0.update(msg);
+        // Yes this is a busy wait while holding a mutex but this will only
+        // block if the write buffer is full and the system is at capacity so
+        // it's acceptable
+        loop {
+            match self.writer_addr.try_send(writer_msg) {
+                Ok(_) => break,
+                Err(actix::prelude::SendError::Full(m)) => {
+                    writer_msg = m;
+                }
+                Err(actix::prelude::SendError::Closed(m)) => {
+                    writer_msg = m;
+                }
+            }
+        }
+        // TODO send msg to writer
+        current_state.update(msg);
+    }
+}
+
+struct WriteMsg {
+    data: Box<String>,
+}
+
+impl actix::Message for WriteMsg {
+    type Result = ();
+}
+
+struct MsgWriter {
+    log_file: File,
+}
+
+impl actix::Actor for MsgWriter {
+    type Context = actix::Context<Self>;
+}
+
+impl actix::Handler<WriteMsg> for MsgWriter {
+    type Result = ();
+    fn handle(&mut self, msg: WriteMsg, _ctx: &mut actix::Context<Self>) -> Self::Result {
+        self.log_file.write_all(msg.data.as_bytes()).unwrap();
+        self.log_file.write_all(b"\n").unwrap();
     }
 }

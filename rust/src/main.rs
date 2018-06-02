@@ -1,3 +1,4 @@
+extern crate actix;
 extern crate actix_web;
 extern crate serde_json;
 #[macro_use]
@@ -100,6 +101,7 @@ fn place_ask(data: (State<AppState>, Path<(UserId, Price)>)) -> impl Responder {
 }
 
 fn main() {
+    let system = actix::System::new("main");
     let initial_orderbook = Orderbook {
         asks: Vec::new(),
         bids: Vec::new(),
@@ -113,5 +115,7 @@ fn main() {
             .route("/sell/{user}/{amount}", http::Method::GET, place_ask)
     }).bind("127.0.0.1:8080")
         .unwrap()
-        .run()
+        .start();
+    println!("Started http server: 127.0.0.1:8080");
+    system.run();
 }

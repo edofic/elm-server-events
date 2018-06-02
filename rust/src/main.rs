@@ -11,13 +11,13 @@ use lib::{EventSourced, ManagedState};
 
 type AppState = ManagedState<Orderbook>;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct Orderbook {
     asks: Vec<Order>,
     bids: Vec<Order>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct Order {
     user_id: UserId,
     order_type: OrderType,
@@ -49,7 +49,7 @@ impl Orderbook {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 enum OrderType {
     Buy,
     Sell,

@@ -15,7 +15,7 @@ pub trait EventSourced {
 }
 
 pub struct ManagedState<S> {
-    current_state: Arc<Mutex<S>>,
+    current_state: Arc<Mutex<Arc<S>>>,
     writer_addr: actix::Addr<actix::Syn, MsgWriter>,
 }
 
@@ -46,7 +46,7 @@ where
         let writer = MsgWriter { log_file };
         let writer_addr: actix::Addr<actix::Syn, _> = writer.start();
         Ok(ManagedState {
-            current_state: Arc::new(Mutex::new(state)),
+            current_state: Arc::new(Mutex::new(Arc::new(state))),
             writer_addr: writer_addr,
         })
     }
@@ -77,12 +77,8 @@ where
         Result::Ok(initial_state)
     }
 
-    pub fn with_snapshot<F, A>(&self, f: F) -> A
-    where
-        F: Fn(&S) -> A,
-    {
-        let current_state = &*self.current_state.lock().unwrap();
-        f(current_state)
+    pub fn snapshot(&self) -> Arc<S> {
+        self.current_state.lock().unwrap().clone()
     }
 
     pub fn dispatch(&self, msg: S::Msg) {
@@ -105,7 +101,7 @@ where
                 }
             }
         }
-        *current_state = current_state.update(msg);
+        *current_state = Arc::new(current_state.update(msg));
     }
 }
 

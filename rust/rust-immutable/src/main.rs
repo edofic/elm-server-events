@@ -76,7 +76,8 @@ fn index(_info: HttpRequest<AppState>) -> impl Responder {
 }
 
 fn orderbook(state: State<AppState>) -> HttpResponse {
-    state.with_snapshot(|orderbook| HttpResponse::Ok().json(&orderbook))
+    let orderbook = &*state.snapshot();
+    HttpResponse::Ok().json(orderbook)
 }
 
 fn place_bid(data: (State<AppState>, Path<(UserId, Price)>)) -> impl Responder {

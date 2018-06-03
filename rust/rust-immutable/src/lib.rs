@@ -11,7 +11,7 @@ use self::actix::Actor;
 
 pub trait EventSourced {
     type Msg;
-    fn update(&mut self, msg: Self::Msg);
+    fn update(&self, msg: Self::Msg) -> Self;
 }
 
 pub struct ManagedState<S> {
@@ -29,7 +29,7 @@ impl<S> Clone for ManagedState<S> {
     }
 }
 
-impl<'de, 's, S> ManagedState<S>
+impl<S> ManagedState<S>
 where
     S: EventSourced,
     S: serde::Serialize,
@@ -63,7 +63,7 @@ where
         for line_res in BufReader::new(log_file).lines() {
             let line = line_res?;
             let msg: S::Msg = serde_json::from_str(&line)?;
-            state.update(msg)
+            state = state.update(msg);
         }
         println!("replay ok");
 
@@ -105,8 +105,7 @@ where
                 }
             }
         }
-        // TODO send msg to writer
-        current_state.update(msg);
+        *current_state = current_state.update(msg);
     }
 }
 

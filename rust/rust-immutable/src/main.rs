@@ -12,13 +12,13 @@ use lib::{EventSourced, ManagedState};
 
 type AppState = ManagedState<Orderbook>;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct Orderbook {
     asks: Vec<Order>,
     bids: Vec<Order>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct Order {
     user_id: UserId,
     order_type: OrderType,
@@ -50,7 +50,7 @@ impl Orderbook {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 enum OrderType {
     Buy,
     Sell,
@@ -58,13 +58,16 @@ enum OrderType {
 
 impl EventSourced for Orderbook {
     type Msg = Order;
-    fn update(&mut self, msg: Self::Msg) {
+    fn update(&self, msg: Self::Msg) -> Orderbook {
+        // efficiency of this approach relies on cheap clones
+        let mut orderbook = self.clone();
         let order = msg;
         match order.order_type {
-            OrderType::Buy => self.bids.push(order),
-            OrderType::Sell => self.asks.push(order),
+            OrderType::Buy => orderbook.bids.push(order),
+            OrderType::Sell => orderbook.asks.push(order),
         };
-        self.normalize();
+        orderbook.normalize();
+        orderbook
     }
 }
 

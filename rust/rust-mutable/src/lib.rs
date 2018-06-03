@@ -42,7 +42,7 @@ where
             println!("error: {}", err);
             Self::store_initial(initial_state)
         })?;
-        let log_file = OpenOptions::new().write(true).append(true).open("log.txt")?;
+        let log_file = OpenOptions::new().write(true).append(true).create(true).open("log.txt")?;
         let writer = MsgWriter { log_file };
         let writer_addr: actix::Addr<actix::Syn, _> = writer.start();
         Ok(ManagedState {

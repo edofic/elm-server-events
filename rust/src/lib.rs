@@ -1,4 +1,5 @@
 extern crate actix;
+extern crate futures;
 extern crate serde;
 extern crate serde_json;
 
@@ -7,7 +8,8 @@ use std::io;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::sync::{Arc, Mutex};
 
-use self::actix::Actor;
+use self::actix::prelude::Actor;
+use self::futures::future::Future;
 
 pub trait EventSourced {
     type Msg;
@@ -85,28 +87,16 @@ where
         f(current_state)
     }
 
-    pub fn dispatch(&self, msg: S::Msg) {
+    // TODO #[must_use]
+    pub fn dispatch(&self, msg: S::Msg) -> Box<Future<Item = (), Error = actix::MailboxError>> {
         let json_msg = serde_json::to_string(&msg).unwrap();
-        let mut writer_msg = WriteMsg {
+        let writer_msg = WriteMsg {
             data: Box::new(json_msg),
         };
         let mut current_state = self.current_state.lock().unwrap();
-        // Yes this is a busy wait while holding a mutex but this will only
-        // block if the write buffer is full and the system is at capacity so
-        // it's acceptable
-        loop {
-            match self.writer_addr.try_send(writer_msg) {
-                Ok(_) => break,
-                Err(actix::prelude::SendError::Full(m)) => {
-                    writer_msg = m;
-                }
-                Err(actix::prelude::SendError::Closed(m)) => {
-                    writer_msg = m;
-                }
-            }
-        }
-        // TODO send msg to writer
+        let request = self.writer_addr.send(writer_msg);
         current_state.update(msg);
+        Box::new(request)
     }
 }
 

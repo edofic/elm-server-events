@@ -1,12 +1,15 @@
 extern crate actix;
 extern crate actix_web;
+extern crate futures;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 
 mod lib;
 
-use actix_web::{http, server, App, HttpRequest, HttpResponse, Path, Responder, State};
+use actix_web::{http, server, App, AsyncResponder, HttpRequest, HttpResponse, Path, Responder,
+                State};
+use futures::Future;
 
 use lib::{EventSourced, ManagedState};
 
@@ -76,7 +79,9 @@ fn orderbook(state: State<AppState>) -> HttpResponse {
     state.with_snapshot(|orderbook| HttpResponse::Ok().json(&orderbook))
 }
 
-fn place_bid(data: (State<AppState>, Path<(UserId, Price)>)) -> impl Responder {
+fn place_bid(
+    data: (State<AppState>, Path<(UserId, Price)>),
+) -> Box<Future<Item = HttpResponse, Error = actix_web::Error>> {
     let state = data.0;
     let path = data.1;
     let order = Order {
@@ -84,11 +89,20 @@ fn place_bid(data: (State<AppState>, Path<(UserId, Price)>)) -> impl Responder {
         order_type: OrderType::Buy,
         price: path.1,
     };
-    state.dispatch(order);
-    "ok"
+    state
+        .dispatch(order)
+        .map(|_| HttpResponse::Ok().body(format!("Hello!")))
+        .or_else(|_| {
+            futures::future::result(
+                Ok(HttpResponse::InternalServerError().body(format!("Something went wrong!"))),
+            )
+        })
+        .responder()
 }
 
-fn place_ask(data: (State<AppState>, Path<(UserId, Price)>)) -> impl Responder {
+fn place_ask(
+    data: (State<AppState>, Path<(UserId, Price)>),
+) -> Box<Future<Item = HttpResponse, Error = actix_web::Error>> {
     let state = data.0;
     let path = data.1;
     let order = Order {
@@ -96,8 +110,15 @@ fn place_ask(data: (State<AppState>, Path<(UserId, Price)>)) -> impl Responder {
         order_type: OrderType::Sell,
         price: path.1,
     };
-    state.dispatch(order);
-    "ok"
+    state
+        .dispatch(order)
+        .map(|_| HttpResponse::Ok().body(format!("Hello!")))
+        .or_else(|_| {
+            futures::future::result(
+                Ok(HttpResponse::InternalServerError().body(format!("Something went wrong!"))),
+            )
+        })
+        .responder()
 }
 
 fn main() {

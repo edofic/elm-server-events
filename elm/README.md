@@ -26,11 +26,12 @@ library part.
 
 ### Running
 
-You will need `node.js` and `elm` installed. Then to stand the application up
+You will need `docker` and `docker-compose`.
 
 ```sh
-npm install
-elm-make Main.elm --output elm.js
+docker-compose up -d
+docker-compose exec app bash
+./node_modules/.bin/elm-make Main.elm --output elm.js
 node main.js
 ```
 

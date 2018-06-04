@@ -117,9 +117,9 @@ fn main() {
             .route("/orderbook", http::Method::GET, orderbook)
             .route("/buy/{user}/{amount}", http::Method::GET, place_bid)
             .route("/sell/{user}/{amount}", http::Method::GET, place_ask)
-    }).bind("127.0.0.1:8080")
+    }).bind("0.0.0.0:8080")
         .unwrap()
         .start();
-    println!("Started http server: 127.0.0.1:8080");
+    println!("Started http server: 0.0.0.0:8080");
     system.run();
 }

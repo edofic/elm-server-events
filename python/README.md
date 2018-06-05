@@ -25,6 +25,5 @@ python main.py
 
 ## TODO
 
-- separate out the library
 - buffered disk writes
 - production grade app server

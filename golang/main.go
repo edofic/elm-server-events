@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 )
@@ -69,20 +70,35 @@ func (ob *Orderbook) Copy() Orderbook {
 	return Orderbook{asks, bids}
 }
 
-func runNewManagedState() *ManagedState {
-	s := &ManagedState{make(chan Order), make(chan (chan Orderbook), 1)}
-	go runEventloop(s.orders, s.snapshot)
+func runNewManagedState(initial *Orderbook) *ManagedState {
+	initFile, err := os.Create("init.txt")
+	if err != nil {
+		panic(err)
+	}
+	defer initFile.Close()
+	json.NewEncoder(initFile).Encode(initial)
+
+	logFile, err := os.OpenFile("log.txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0640)
+	if err != nil {
+		panic(err)
+	}
+	s := &ManagedState{
+		make(chan Order),
+		make(chan (chan Orderbook), 1),
+		logFile,
+	}
+	go s.runEventloop(initial)
 	return s
 }
 
-func runEventloop(orders chan Order, snapshot chan (chan Orderbook)) {
-	orderbook := &Orderbook{make([]Order, 0), make([]Order, 0)}
+func (s *ManagedState) runEventloop(orderbook *Orderbook) {
 	for {
 		select {
-		case order := <-orders:
+		case order := <-s.orders:
+			json.NewEncoder(s.logFile).Encode(order)
 			orderbook.placeOrder(order)
 
-		case snapshotCh := <-snapshot:
+		case snapshotCh := <-s.snapshot:
 			snapshotCh <- orderbook.Copy()
 		}
 	}
@@ -91,6 +107,7 @@ func runEventloop(orders chan Order, snapshot chan (chan Orderbook)) {
 type ManagedState struct {
 	orders   chan Order
 	snapshot chan (chan (Orderbook))
+	logFile  *os.File
 }
 
 func (s *ManagedState) dispatch(order Order) {
@@ -104,7 +121,8 @@ func (s *ManagedState) get() Orderbook {
 }
 
 func main() {
-	s := runNewManagedState(initial)
+	intial := &Orderbook{make([]Order, 0), make([]Order, 0)}
+	s := runNewManagedState(intial)
 	router := mux.NewRouter()
 	router.HandleFunc("/", Index)
 	router.HandleFunc("/orderbook", ViewOrderbook(s))

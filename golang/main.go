@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -71,12 +73,35 @@ func (ob *Orderbook) Copy() Orderbook {
 }
 
 func runNewManagedState(initial *Orderbook) *ManagedState {
-	initFile, err := os.Create("init.txt")
-	if err != nil {
-		panic(err)
+	initFile, err := os.OpenFile("init.txt", os.O_RDONLY, 0640)
+	if err == nil {
+		defer initFile.Close()
+		logFile, err := os.OpenFile("log.txt", os.O_RDONLY, 0640)
+		if err == nil {
+			defer logFile.Close()
+			lineReader := bufio.NewReader(logFile)
+			for {
+				line, _, err := lineReader.ReadLine()
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+					panic(err)
+				}
+				var order Order
+				json.Unmarshal(line, &order)
+				initial.placeOrder(order)
+			}
+		}
+
+	} else {
+		initFile, err = os.OpenFile("init.txt", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0640)
+		if err != nil {
+			panic(err)
+		}
+		defer initFile.Close()
+		json.NewEncoder(initFile).Encode(initial)
 	}
-	defer initFile.Close()
-	json.NewEncoder(initFile).Encode(initial)
 
 	logFile, err := os.OpenFile("log.txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0640)
 	if err != nil {

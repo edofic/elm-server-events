@@ -10,6 +10,8 @@ scalaVersion := "2.12.6"
 libraryDependencies += guice
 libraryDependencies += "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.2" % Test
 
+scalafmtOnCompile := true
+
 // Adds additional packages into Twirl
 //TwirlKeys.templateImports += "com.edofic.controllers._"
 

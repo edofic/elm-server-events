@@ -5,6 +5,9 @@
 
 # An example controller showing a sample home page
 GET     /                           controllers.HomeController.index
+GET     /orderbook                  controllers.HomeController.orderbook
+GET     /buy/:userId/:price         controllers.HomeController.placeBuy(userId: Int, price: Int)
+GET     /sell/:userId/:price        controllers.HomeController.placeSell(userId: Int, price: Int)
 
 # Map static resources from the /public folder to the /assets URL path
 GET     /assets/*file               controllers.Assets.versioned(path="/public", file: Asset)

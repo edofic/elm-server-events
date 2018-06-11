@@ -5,11 +5,8 @@ import javax.inject.Singleton
 import models.{Order, Orderbook}
 
 @Singleton
-class State {
-  private[this] var orderbook = Orderbook.empty
-  def get = orderbook
-
-  def placeOrder(order: Order): Unit = {
-    orderbook = orderbook.placeOrder(order)
-  }
-}
+class State
+    extends ManagedState[Orderbook, Order](
+      Orderbook.empty,
+      (msg, book) => book.placeOrder(msg)
+    )

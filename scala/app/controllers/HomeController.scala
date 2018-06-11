@@ -21,12 +21,12 @@ class HomeController @Inject()(state: State, cc: ControllerComponents)
   }
 
   def placeBuy(userId: Int, price: Int) = Action {
-    state.placeOrder(Order(UserId(userId), OrderType.Buy, Price(price)))
+    state.dispatch(Order(UserId(userId), OrderType.Buy, Price(price)))
     Ok("ok")
   }
 
   def placeSell(userId: Int, price: Int) = Action {
-    state.placeOrder(Order(UserId(userId), OrderType.Sell, Price(price)))
+    state.dispatch(Order(UserId(userId), OrderType.Sell, Price(price)))
     Ok("ok")
   }
 

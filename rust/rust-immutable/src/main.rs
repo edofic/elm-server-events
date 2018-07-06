@@ -111,15 +111,16 @@ fn main() {
         bids: Vec::new(),
     };
     let initial_state = ManagedState::new(initial_orderbook).unwrap();
+    let server_address = "0.0.0.0:8080";
     server::new(move || {
         App::with_state(initial_state.clone())
             .resource("/", |r| r.get().f(index))
             .route("/orderbook", http::Method::GET, orderbook)
             .route("/buy/{user}/{amount}", http::Method::GET, place_bid)
             .route("/sell/{user}/{amount}", http::Method::GET, place_ask)
-    }).bind("0.0.0.0:8080")
+    }).bind(server_address)
         .unwrap()
         .start();
-    println!("Started http server: 0.0.0.0:8080");
+    println!("Started http server: {}", server_address);
     system.run();
 }
